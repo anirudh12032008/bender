@@ -1,0 +1,14 @@
+packages:
+  adep:
+    revision: null
+    version: null
+    source:
+      Path: adep
+    dependencies: []
+  mid:
+    revision: null
+    version: null
+    source:
+      Path: mid
+    dependencies:
+    - adep

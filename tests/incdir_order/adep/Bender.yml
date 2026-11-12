@@ -1,0 +1,8 @@
+package:
+  name: adep
+
+export_include_dirs:
+  - inc
+
+sources:
+  - adep.sv

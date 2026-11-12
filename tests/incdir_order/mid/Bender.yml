@@ -1,0 +1,11 @@
+package:
+  name: mid
+
+dependencies:
+  adep: { path: "../adep" }
+
+export_include_dirs:
+  - inc
+
+sources:
+  - mid.sv

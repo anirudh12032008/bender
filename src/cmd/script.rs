@@ -984,11 +984,17 @@ fn emit_template(
                 .iter()
                 .map(|(k, (_, v))| (k.to_string(), v.map(String::from))),
         );
-        all_incdirs.extend(src.get_incdirs());
         all_files.extend(src.files.iter().filter_map(|file| match file {
             SourceFile::File(p, _) => Some(*p),
             SourceFile::Group(_) => None,
         }));
+    }
+
+    // `srcs` is ordered dependencies first, root package last. Include directories are searched
+    // in order and the first match wins, so collect them root first: a package's own headers
+    // take precedence over those of its dependencies. Do not sort, that would drop this order.
+    for src in srcs.iter().rev() {
+        all_incdirs.extend(src.get_incdirs());
     }
 
     add_defines(&mut all_defines, &args.define);
@@ -1000,7 +1006,6 @@ fn emit_template(
 
     tera_context.insert("all_defines", &all_defines);
 
-    all_incdirs.sort();
     let all_incdirs: IndexSet<PathBuf> = if emit_incdirs {
         all_incdirs.into_iter().map(|p| p.to_path_buf()).collect()
     } else {
@@ -1058,15 +1063,13 @@ fn emit_template(
                         add_defines(&mut local_defines, &args.define);
                         local_defines.into_iter().collect()
                     },
-                    incdirs: {
-                        let mut incdirs = src
-                            .get_incdirs()
-                            .iter()
-                            .map(|p| p.to_path_buf())
-                            .collect::<IndexSet<_>>();
-                        incdirs.sort();
-                        incdirs
-                    },
+                    // Keep the order of `get_incdirs`: own include dirs, the package's own
+                    // exports, then those of its dependencies (first match wins).
+                    incdirs: src
+                        .get_incdirs()
+                        .iter()
+                        .map(|p| p.to_path_buf())
+                        .collect::<IndexSet<_>>(),
                     files: files
                         .iter()
                         .map(|f| match f {

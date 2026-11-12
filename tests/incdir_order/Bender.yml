@@ -1,0 +1,13 @@
+package:
+  name: incdir_order
+
+dependencies:
+  adep: { path: "adep" }
+  mid: { path: "mid" }
+
+# `zroot_inc` sorts after the dependencies' include directories alphabetically.
+sources:
+  - include_dirs:
+      - zroot_inc
+    files:
+      - src/top.sv
