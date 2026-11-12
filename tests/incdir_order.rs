@@ -3,7 +3,9 @@
 
 use assert_cmd::cargo;
 
-fn incdirs(format: &str) -> Vec<String> {
+/// Include directories per source group (vsim starts a new group at each `vlog`), relative to the
+/// fixture root.
+fn incdirs(format: &str) -> Vec<Vec<String>> {
     let out = cargo::cargo_bin_cmd!()
         .args(["-d", "tests/incdir_order", "script", format])
         .output()
@@ -13,32 +15,44 @@ fn incdirs(format: &str) -> Vec<String> {
         "script command failed: {}",
         String::from_utf8_lossy(&out.stderr)
     );
-    String::from_utf8(out.stdout)
-        .expect("stdout must be utf-8")
-        .lines()
-        .filter_map(|l| {
-            l.find("+incdir+")
-                .map(|i| l[i + 8..].trim_end_matches(['"', '\\', ' ']))
-        })
-        .map(|p| p.replace('\\', "/"))
-        .collect()
+    let stdout = String::from_utf8(out.stdout).expect("stdout must be utf-8");
+    let mut groups = vec![vec![]];
+    for l in stdout.lines() {
+        if l.contains("vlog") {
+            groups.push(vec![]);
+        }
+        if let Some(i) = l.find("+incdir+") {
+            let p = l[i + 8..]
+                .trim_end_matches(['"', '\\', ' '])
+                .replace('\\', "/");
+            let p = p.rsplit_once("incdir_order/").map_or(p.as_str(), |x| x.1);
+            let p = p.strip_prefix("${ROOT}/").unwrap_or(p);
+            groups.last_mut().unwrap().push(p.to_string());
+        }
+    }
+    groups.retain(|g| !g.is_empty());
+    groups
 }
 
 /// `zroot_inc` sorts after the dependencies' directories, so alphabetical order would put it last.
 #[test]
 fn flist_plus_root_incdir_first() {
-    let dirs = incdirs("flist-plus");
-    assert_eq!(dirs.len(), 3, "{dirs:?}");
-    assert!(dirs[0].ends_with("zroot_inc"), "{dirs:?}");
+    assert_eq!(
+        incdirs("flist-plus"),
+        [["zroot_inc", "adep/inc", "mid/inc"]]
+    );
 }
 
-/// `mid` depends on `adep`: within its group, `mid/inc` must stay ahead of `adep/inc`.
+/// `mid` depends on `adep`: within its group, `mid/inc` must stay ahead of `adep/inc`, which is
+/// the reverse of alphabetical order.
 #[test]
 fn vsim_group_incdirs_keep_dependency_order() {
-    let dirs = incdirs("vsim");
-    assert!(
-        dirs.windows(2)
-            .any(|w| w[0].ends_with("mid/inc") && w[1].ends_with("adep/inc")),
-        "{dirs:?}"
+    assert_eq!(
+        incdirs("vsim"),
+        [
+            vec!["adep/inc"],
+            vec!["mid/inc", "adep/inc"],
+            vec!["zroot_inc", "adep/inc", "mid/inc"],
+        ]
     );
 }
